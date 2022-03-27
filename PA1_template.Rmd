@@ -7,19 +7,104 @@ output:
 
 
 ## Loading and preprocessing the data
+# load the packages
+library (data.table)
+library(dplyr)
+library(ggplot2)
+directory <- getwd()
+
+# load the data 
+fileUrl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+download.file(fileUrl, destfile = paste0(getwd(), '/activity.zip'), method = "curl")
+unzip("activity.zip",exdir = "data")
+
+# read.csv()
+activitydata <- read.csv(paste0(directory,'/data/activity.csv'))
 
 
 
 ## What is mean total number of steps taken per day?
+#group data by date
+stepday <- activitydata %>% group_by(date) %>% summarize(sum_steps = sum(steps), .groups = 'drop' )
+
+# make a histogram of the total numbers of steps 
+with(
+  stepday,
+  hist(
+    sum_steps,
+    xlab = "no. of steps per day",
+    labels = TRUE
+  )
+)
+  
+# calculate mean and median 
+stepday %>% filter(complete.cases(.)) %>% summarize (mean= mean(sum_steps), median = median (sum_steps))
 
 
 
 ## What is the average daily activity pattern?
 
+activityinterval <- activitydata %>% group_by(interval) %>% na.omit () %>% 
+  summarize (mean_step = mean(steps), .groups='drop')
+
+ggplot(activityinterval, aes(interval, mean_step)) + geom_line() + 
+  labs(x= "interval", y= "avg steps") +
+  ggtitle("avg step during 5min interval")
+
+# which 5min interval contains max steps? 
+activityinterval %>% filter(mean_step == max(mean_step))
+
 
 
 ## Imputing missing values
+# calculate total number of NAs
+activitydata %>% summarise_all(~sum(is.na(.)))
 
+# fill in all NA : use the mean of the day,  create a new dataset that has data filled in 
+completedata <- activitydata
+for (i in 1:nrow(completedata)) {
+  if(is.na(completedata$steps[i])) {
+    index <- which(completedata$interval[i]== activityinterval$interval)
+    completedata$steps[i] <- activityinterval[index, ]$mean_step
+    
+  }
+}
 
+# make histogram and calculate mean and median 
+plot_completedata <- completedata %>% 
+  group_by(date) %>% 
+  summarize(sum_steps = sum(steps), .groups= 'drop')
+
+with(
+  plot_completedata,
+  hist(
+    sum_steps,
+    xlab= "no. of steps per day",
+    labels= TRUE
+  )
+)
 
 ## Are there differences in activity patterns between weekdays and weekends?
+# divide into weekend and weekdays 
+head(completedata)
+completedata$day <- as.factor(weekdays(as.Date(completedata$date)))
+completedata$is_weekday <- ifelse(!(completedata$day %in% c("Saturday","Sunday")), TRUE, FALSE)
+
+# mean of weekday 
+wkd_dt <- completedata[completedata$is_weekday,]
+wkd_mean <- aggregate(wkd_dt$steps, by=list(interval=wkd_dt$interval), FUN=mean)
+
+# mean of weekday 
+wkend_dt <-completedata[!completedata$is_weekday,]
+wkend_mean <- aggregate(wkend_dt$steps, by=list(interval=wkend_dt$interval),FUN=mean)
+
+#name  columns and plot
+colnames(wkd_mean)<-c("interval","avg_steps")
+colnames(wkend_mean) <-c("interval","avg_steps")
+wkd_mean$day <- "Weekday"
+wkend_mean$day <- "Weekend"
+
+all_week <- rbind(wkd_mean,wkend_mean)
+all_week$day <- as.factor(all_week$day)
+library(lattice)
+xyplot(avg_steps ~ interval | day, data= all_week, layout = c(1,2), type="l",xlab = "interval",  ylab="no. of steps")

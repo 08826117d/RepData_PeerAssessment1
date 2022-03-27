@@ -5,7 +5,7 @@ output:
     keep_md: true
 ---
 
-
+'''
 ## Loading and preprocessing the data
 # load the packages
 library (data.table)
@@ -108,3 +108,4 @@ all_week <- rbind(wkd_mean,wkend_mean)
 all_week$day <- as.factor(all_week$day)
 library(lattice)
 xyplot(avg_steps ~ interval | day, data= all_week, layout = c(1,2), type="l",xlab = "interval",  ylab="no. of steps")
+'''
